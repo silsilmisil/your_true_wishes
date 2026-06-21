@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>きみに願いを</title>
+
+<!-- ホーム画面に追加した時のアイコン -->
+<link rel="apple-touch-icon" href="icon.png">
+
+<!-- ホーム画面から起動した時、Safariのアドレスバーを隠してアプリっぽく表示 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="きみに願いを">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+    background: #0a1228 url('wishbase.jpg') bottom / cover fixed no-repeat;
+    color: #332f2a;
+    min-height: 100vh;
+    padding-bottom: 100px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 14, 8, 0.35);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  #app-header, #list-page, #editor-page, #save-bar {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== HEADER ===== */
+  #app-header {
+    background: #3a3a3a;
+    border-bottom: 1px solid #2a2a2a;
+    padding: 14px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  #app-title {
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+    font-size: 17px;
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    color: #111;
+    white-space: nowrap;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  #header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid #e3d8c8;
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    color: #5c5347;
+    flex-shrink: 0;
+  }
+  .icon-btn:active { background: #fbf0e2; }
+
+  /* ===== SHEET LIST PAGE ===== */
+  #list-page {
+    padding: 0 16px 90px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  #list-page.hidden { display: none; }
+
+  #list-tabs {
+    display: flex;
+    position: relative;
+    margin: 16px 0 14px;
+    border-bottom: 1.5px solid #f0e4d4;
+  }
+
+  .list-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 10px 6px 12px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #5a5a5a;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: color 0.2s;
+  }
+
+  .list-tab.active {
+    color: #fff;
+  }
+
+  #list-tab-indicator {
+    position: absolute;
+    bottom: -1.5px;
+    left: 0;
+    width: 50%;
+    height: 2.5px;
+    background: #c89422;
+    transition: transform 0.25s ease;
+  }
+
+  #list-tabs.tab-complete-active #list-tab-indicator {
+    transform: translateX(100%);
+  }
+
+  #swipe-container {
+    position: relative;
+    touch-action: pan-y;
+  }
+
+  .swipe-pane {
+    width: 100%;
+    box-sizing: border-box;
+    display: none;
+  }
+
+  .swipe-pane.active {
+    display: block;
+    animation: paneFadeIn 0.28s ease;
+  }
+
+  @keyframes paneFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .sheet-list { width: 100%; }
+
+  .sheet-card {
+    background: #fff;
+    border: 1px solid #f0e4d4;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(24px);
+    animation: cardPopIn 0.32s ease forwards;
+    position: relative;
+  }
+  .sheet-card:active { border-color: #b8841a; }
+
+  @keyframes cardPopIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .sheet-card.leaving {
+    animation: cardFadeOut 0.18s ease forwards;
+  }
+
+  @keyframes cardFadeOut {
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+
+  .sheet-card-main {
+    flex: 1;
+    min-width: 0;
+    padding-right: 32px;
+  }
+
+  .sheet-delete-btn {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #d9cfc0;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    z-index: 2;
+  }
+  .sheet-delete-btn:active { color: #d65d83; }
+  .sheet-delete-btn.confirming {
+    color: #d65d83;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #d65d83;
+    border-radius: 6px;
+    padding: 3px 6px;
+    background: #fff;
+    top: 6px;
+    right: 8px;
+  }
+
+  .sheet-card-title {
+    font-size: 18.5px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #1a1a1a;
+  }
+
+  .sheet-card-title.placeholder {
+    color: #999;
+    font-weight: 400;
+  }
+
+  .sheet-card-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    gap: 8px;
+  }
+
+  .sheet-card-sub {
+    font-size: 12px;
+    color: #999;
+    flex-shrink: 0;
+  }
+
+  .star-rating {
+    display: flex;
+    gap: 2px;
+  }
+
+  .star-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    font-size: 19px;
+    line-height: 1;
+    color: #e3d8c8;
+  }
+
+  .star-btn.filled {
+    color: #e2a83c;
+  }
+
+  .sort-fab {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1.5px solid #e3d8c8;
+    color: #a87a1c;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    flex-shrink: 0;
+    letter-spacing: -2px;
+  }
+  .sort-fab:active { background: #fbf0e2; }
+
+  #bottom-bar {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    max-width: 608px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    z-index: 40;
+  }
+
+  #new-sheet-btn {
+    flex: 1;
+    background: #b8841a;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    box-shadow: 0 2px 12px rgba(184, 132, 26, 0.35);
+  }
+  #new-sheet-btn:active { background: #96690f; }
+
+  .empty-state {
+    text-align: center;
+    color: #e8dcc8;
+    font-size: 13px;
+    padding: 60px 20px;
+    line-height: 1.8;
+  }
+
+  /* ===== EDITOR PAGE ===== */
+  #editor-page {
+    padding: 16px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  #editor-page.hidden { display: none; }
+
+  .fade-in-item {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  .fade-in-item.show {
+    animation: fadeInUp 0.45s ease forwards;
+  }
+
+  @keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .title-input-wrap {
+    margin-bottom: 0;
+    background: #fff;
+    border-radius: 14px 14px 0 0;
+    padding: 18px 16px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    min-height: 20vh;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    border-bottom: 1.5px solid #d9cfc0;
+    position: relative;
+  }
+
+  .title-eyebrow {
+    font-size: 16px;
+    color: #b8ac9d;
+    letter-spacing: 0.3em;
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .vague-attached-box {
+    background: #fff;
+    border-radius: 0 0 14px 14px;
+    padding: 16px 16px 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  }
+
+  .vague-attached-box textarea.field {
+    width: 100%;
+  }
+
+  #sheet-title-input {
+    width: 100%;
+    font-size: 28px;
+    font-weight: 700;
+    border: none;
+    padding: 4px 2px;
+    background: transparent;
+    color: #332f2a;
+    outline: none;
+    text-align: left;
+    font-family: inherit;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.4;
+    display: block;
+  }
+  #sheet-title-input:focus { outline: none; }
+  #sheet-title-input::placeholder { color: #d9cfc0; font-weight: 400; }
+
+  .section {
+    margin-bottom: 22px;
+    width: 92%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .wiggle-target.wiggle {
+    animation: wiggle 0.35s ease;
+  }
+
+  @keyframes wiggle {
+    0% { transform: rotate(0deg); }
+    20% { transform: rotate(-1.8deg); }
+    40% { transform: rotate(1.6deg); }
+    60% { transform: rotate(-1deg); }
+    80% { transform: rotate(0.6deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #fff;
+    background: #a99c8c;
+    padding: 9px 12px;
+    border-radius: 6px 6px 0 0;
+    letter-spacing: 0.03em;
+  }
+
+  .section-label.green { background: #c89422; }
+  .section-label.gray { background: #e0457e; }
+
+  .section-box {
+    background: #fff;
+    border: 1px solid #f0e4d4;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 12px;
+  }
+
+  .section-box.white {
+    background: #fff;
+    border-color: #f0e4d4;
+  }
+
+  .section-box.attached {
+    border-top: 1px solid #f5e9da;
+  }
+
+  .section-box.top-box {
+    border-radius: 0;
+  }
+
+  textarea.field {
+    width: 100%;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: #1a1a1a;
+    resize: none;
+    outline: none;
+    min-height: 70px;
+    overflow: hidden;
+  }
+  textarea.field::placeholder { color: #999; }
+
+  .chain-cell textarea.field {
+    color: #f0f0f0;
+  }
+  .chain-cell textarea.field::placeholder {
+    color: #8a8a90;
+  }
+
+  .arrow-down {
+    text-align: center;
+    color: #c89422;
+    padding: 6px 0 10px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .arrow-down svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .section-label.tappable {
+    cursor: pointer;
+    justify-content: space-between;
+    user-select: none;
+  }
+  .section-label.tappable:active { opacity: 0.85; }
+
+  .tap-hint {
+    font-size: 13px;
+    opacity: 0.75;
+    font-weight: 400;
+  }
+
+  .section-label.red {
+    background: #0d0a1a;
+    border: 1px solid #c89422;
+    border-bottom: none;
+  }
+
+  .chain-block {
+    border: 1px solid #f0e4d4;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .chain-block.first-block {
+    border-radius: 0 0 8px 8px;
+    border-color: #c89422;
+  }
+
+  .chain-row {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chain-cell {
+    padding: 12px;
+    border-bottom: 1px solid #1a1a1e;
+  }
+
+  .chain-cell:last-child { border-bottom: none; }
+
+  .chain-cell-label {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #a99c8c;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .chain-cell.problem { background: #2e2e34; }
+  .chain-cell.flip { background: #2e2e34; }
+  .chain-cell.solve { background: #2e2e34; }
+
+  .chain-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #d9cfc0;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+    z-index: 5;
+  }
+  .chain-delete:active { color: #d65d83; }
+
+  .stage-connector {
+    text-align: center;
+    font-size: 11px;
+    color: #b8ac9d;
+    padding: 4px 0;
+    letter-spacing: 0.15em;
+  }
+
+  #add-stage-btn {
+    width: 100%;
+    background: #fff;
+    border: 1.5px dashed #d9cfc0;
+    color: #a99c8c;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  #add-stage-btn:active { background: #fbf0e2; }
+
+  #save-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #f0e4d4;
+    padding: 12px 16px;
+    display: flex;
+    gap: 10px;
+    z-index: 50;
+  }
+
+  #save-bar.hidden { display: none; }
+
+  #save-bar button {
+    flex: 1;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  #back-to-list-btn {
+    background: #c89422;
+    color: #fff;
+  }
+  #back-to-list-btn:active { background: #a87a1c; }
+
+  #discard-btn {
+    background: #f3e9da;
+    color: #5c5347;
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    font-size: 16px;
+  }
+  #discard-btn:active { background: #e3d8c8; }
+
+  #save-btn {
+    background: #2e8b57;
+    color: #fff;
+    flex: 0 0 auto;
+    padding: 14px 18px;
+    font-weight: 700;
+  }
+  #save-btn:active { background: #246e44; }
+
+  #save-btn.uncomplete-mode {
+    background: #f3e9da;
+    color: #5c5347;
+  }
+  #save-btn.uncomplete-mode:active { background: #e3d8c8; }
+
+  .section-sub-label {
+    font-size: 11px;
+    color: #b8ac9d;
+    margin: 2px 0 8px 2px;
+  }
+</style>
+</head>
+<body>
+
+<div id="app-header">
+  <div id="app-title">きみに願いを</div>
+</div>
+
+<div id="list-page">
+  <div id="list-tabs">
+    <button class="list-tab active" id="tab-incomplete" data-tab="incomplete">想いをよせる</button>
+    <button class="list-tab" id="tab-complete" data-tab="complete">真の願い</button>
+    <div id="list-tab-indicator"></div>
+  </div>
+  <div id="swipe-container">
+    <div class="swipe-pane active" id="pane-incomplete">
+      <div class="sheet-list" id="sheet-list-incomplete"></div>
+      <div class="empty-state" id="empty-state-incomplete" style="display:none;">
+        まだ願いがありません。<br>
+        下のボタンから新しく願いましょう。
+      </div>
+    </div>
+    <div class="swipe-pane" id="pane-complete">
+      <div class="sheet-list" id="sheet-list-complete"></div>
+      <div class="empty-state" id="empty-state-complete" style="display:none;">
+        まだ叶った願いがありません。<br>
+        育てた願いはここに並びます。
+      </div>
+    </div>
+  </div>
+  <div id="bottom-bar">
+    <button id="new-sheet-btn">＋ 新しく願う</button>
+    <button class="sort-fab" id="sort-toggle-btn" title="並び替え">↑↓</button>
+  </div>
+</div>
+
+<div id="editor-page" class="hidden">
+
+  <div class="title-input-wrap">
+    <div class="title-eyebrow">願い</div>
+    <textarea id="sheet-title-input" placeholder="例：チームが出来上がった感を感じたい" rows="1"></textarea>
+  </div>
+
+  <div class="vague-attached-box">
+    <textarea class="field" id="field-vague" placeholder="概要"></textarea>
+  </div>
+
+  <div class="arrow-down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M5 12l7 7 7-7"/></svg></div>
+
+  <div class="section">
+    <div class="section-label gray tappable wiggle-target" id="deep-label">
+      <span id="deep-label-text">普遍的なスケールにする</span>
+      <span class="tap-hint">⇄</span>
+    </div>
+    <div class="section-box">
+      <textarea class="field" id="field-deep" placeholder="みんなに当てはまるのは？"></textarea>
+    </div>
+  </div>
+
+  <div class="arrow-down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M5 12l7 7 7-7"/></svg></div>
+
+  <div class="section">
+    <div class="section-label green">つまり本当の願いは...</div>
+    <div class="section-box white top-box">
+      <textarea class="field" id="field-need" placeholder="〇〇したい！" style="min-height:50px;"></textarea>
+    </div>
+    <div class="section-box white attached">
+      <textarea class="field" id="field-target" placeholder="〇〇のための願い" style="min-height:50px;"></textarea>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label red">今はどうしてる？</div>
+    <div id="chain-container"></div>
+    <button id="add-stage-btn">＋ もっと深ぼる</button>
+  </div>
+
+</div>
+
+<div id="save-bar" class="hidden">
+  <button id="discard-btn" title="保存せず破棄して戻る">←</button>
+  <button id="back-to-list-btn">保存して戻る</button>
+  <button id="save-btn">できた！</button>
+</div>
+
+<script>
+  const STORAGE_KEY = 'wagamama-needs-sheets';
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  function bindAutoResize(el) {
+    autoResize(el);
+    el.addEventListener('input', () => autoResize(el));
+  }
+
+  let sheets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  let currentId = null;
+  let currentDraftSheet = null; // 保存前の新規シート（まだsheets配列に入っていない）
+  let isEditingDraft = false;
+
+  function saveSheets() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sheets));
+  }
+
+  function getCurrentEditingSheet() {
+    if (isEditingDraft && currentDraftSheet) return currentDraftSheet;
+    return sheets.find(s => s.id === currentId);
+  }
+
+  function uid() {
+    return 'sheet-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function makeEmptySheet() {
+    return {
+      id: uid(),
+      title: '',
+      vague: '',
+      deepMode: null,
+      deep: '',
+      need: '',
+      target: '',
+      chain: [
+        { problem: '', flip: '', solve: '' }
+      ],
+      rating: 0,
+      completed: false,
+      updatedAt: Date.now()
+    };
+  }
+
+  let currentListTab = 'incomplete'; // 'incomplete' or 'complete'
+  let currentSort = 'recent';
+
+  const listPage = document.getElementById('list-page');
+  const editorPage = document.getElementById('editor-page');
+  const saveBar = document.getElementById('save-bar');
+  const sheetListIncompleteEl = document.getElementById('sheet-list-incomplete');
+  const sheetListCompleteEl = document.getElementById('sheet-list-complete');
+  const emptyStateIncomplete = document.getElementById('empty-state-incomplete');
+  const emptyStateComplete = document.getElementById('empty-state-complete');
+  const listTabs = document.getElementById('list-tabs');
+  const swipeContainer = document.getElementById('swipe-container');
+
+  function createSheetCard(sheet, staggered, sheetIdx) {
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+    if (staggered) {
+      card.style.animationDelay = (sheetIdx * 55) + 'ms';
+    }
+    const titleText = sheet.title.trim() || 'なまえなし';
+    const isPlaceholder = !sheet.title.trim();
+    const date = new Date(sheet.updatedAt);
+    const dateStr = (date.getMonth()+1) + '/' + date.getDate() + ' ' + String(date.getHours()).padStart(2,'0') + ':' + String(date.getMinutes()).padStart(2,'0');
+    const rating = sheet.rating || 0;
+
+    let starsHtml = '<div class="star-rating">';
+    for (let i = 1; i <= 5; i++) {
+      starsHtml += '<button class="star-btn ' + (i <= rating ? 'filled' : '') + '" data-star="' + i + '">' + (i <= rating ? '★' : '☆') + '</button>';
+    }
+    starsHtml += '</div>';
+
+    card.innerHTML =
+      '<div class="sheet-card-main">' +
+        '<div class="sheet-card-title ' + (isPlaceholder ? 'placeholder' : '') + '">' + escapeHtml(titleText) + '</div>' +
+        '<div class="sheet-card-meta-row">' +
+          starsHtml +
+          '<div class="sheet-card-sub">' + dateStr + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<button class="sheet-delete-btn" data-action="delete-sheet" data-id="' + sheet.id + '">×</button>';
+
+    card.querySelector('.sheet-card-main').addEventListener('click', (e) => {
+      if (e.target.closest('.star-rating')) return;
+      isEditingDraft = false;
+      currentDraftSheet = null;
+      openEditor(sheet.id);
+    });
+
+    const starRatingEl = card.querySelector('.star-rating');
+    starRatingEl.querySelectorAll('.star-btn').forEach(starBtn => {
+      starBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const clickedValue = parseInt(starBtn.dataset.star, 10);
+        sheet.rating = (sheet.rating === clickedValue) ? 0 : clickedValue;
+        saveSheets();
+
+        const newRating = sheet.rating || 0;
+        starRatingEl.querySelectorAll('.star-btn').forEach((b, i) => {
+          const starValue = i + 1;
+          const isFilled = starValue <= newRating;
+          b.classList.toggle('filled', isFilled);
+          b.textContent = isFilled ? '★' : '☆';
+        });
+      });
+    });
+
+    const delBtn = card.querySelector('.sheet-delete-btn');
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (delBtn.dataset.confirming === '1') {
+        sheets = sheets.filter(s => s.id !== sheet.id);
+        saveSheets();
+        renderList();
+      } else {
+        delBtn.dataset.confirming = '1';
+        delBtn.textContent = '削除？';
+        delBtn.classList.add('confirming');
+        setTimeout(() => {
+          if (delBtn.dataset.confirming === '1') {
+            delBtn.dataset.confirming = '0';
+            delBtn.textContent = '×';
+            delBtn.classList.remove('confirming');
+          }
+        }, 2500);
+      }
+    });
+
+    return card;
+  }
+
+  function sortSheets(list) {
+    return [...list].sort((a, b) => {
+      if (currentSort === 'favorite') {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return b.updatedAt - a.updatedAt;
+      }
+      return b.updatedAt - a.updatedAt;
+    });
+  }
+
+  function renderList(staggered) {
+    const incompleteSheets = sheets.filter(s => !s.completed);
+    const completeSheets = sheets.filter(s => s.completed);
+
+    sheetListIncompleteEl.innerHTML = '';
+    if (incompleteSheets.length === 0) {
+      emptyStateIncomplete.style.display = 'block';
+    } else {
+      emptyStateIncomplete.style.display = 'none';
+      sortSheets(incompleteSheets).forEach((sheet, idx) => {
+        sheetListIncompleteEl.appendChild(createSheetCard(sheet, staggered, idx));
+      });
+    }
+
+    sheetListCompleteEl.innerHTML = '';
+    if (completeSheets.length === 0) {
+      emptyStateComplete.style.display = 'block';
+    } else {
+      emptyStateComplete.style.display = 'none';
+      sortSheets(completeSheets).forEach((sheet, idx) => {
+        sheetListCompleteEl.appendChild(createSheetCard(sheet, staggered, idx));
+      });
+    }
+  }
+
+  function switchListTab(tab) {
+    currentListTab = tab;
+    document.getElementById('tab-incomplete').classList.toggle('active', tab === 'incomplete');
+    document.getElementById('tab-complete').classList.toggle('active', tab === 'complete');
+    listTabs.classList.toggle('tab-complete-active', tab === 'complete');
+
+    const paneIncomplete = document.getElementById('pane-incomplete');
+    const paneComplete = document.getElementById('pane-complete');
+    paneIncomplete.classList.remove('active');
+    paneComplete.classList.remove('active');
+    if (tab === 'incomplete') {
+      void paneIncomplete.offsetWidth;
+      paneIncomplete.classList.add('active');
+    } else {
+      void paneComplete.offsetWidth;
+      paneComplete.classList.add('active');
+    }
+  }
+
+  document.getElementById('tab-incomplete').addEventListener('click', () => switchListTab('incomplete'));
+  document.getElementById('tab-complete').addEventListener('click', () => switchListTab('complete'));
+
+  // Swipe gesture support
+  (function setupSwipe() {
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+
+    swipeContainer.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      isDragging = true;
+    }, { passive: true });
+
+    swipeContainer.addEventListener('touchend', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const diffX = endX - startX;
+      const diffY = endY - startY;
+
+      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX < 0 && currentListTab === 'incomplete') {
+          switchListTab('complete');
+        } else if (diffX > 0 && currentListTab === 'complete') {
+          switchListTab('incomplete');
+        }
+      }
+    }, { passive: true });
+  })();
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.getElementById('new-sheet-btn').addEventListener('click', () => {
+    const sheet = makeEmptySheet();
+    currentDraftSheet = sheet;
+    isEditingDraft = true;
+    openEditor(sheet.id, sheet);
+  });
+
+  const sortToggleBtn = document.getElementById('sort-toggle-btn');
+
+  function updateSortFabIcon() {
+    sortToggleBtn.textContent = currentSort === 'favorite' ? '★' : '↑↓';
+  }
+
+  sortToggleBtn.addEventListener('click', () => {
+    currentSort = currentSort === 'recent' ? 'favorite' : 'recent';
+    updateSortFabIcon();
+
+    const existingCards = document.querySelectorAll('#sheet-list-incomplete .sheet-card, #sheet-list-complete .sheet-card');
+    if (existingCards.length === 0) {
+      renderList();
+      return;
+    }
+    existingCards.forEach((card, i) => {
+      card.style.animationDelay = (i * 25) + 'ms';
+      card.classList.add('leaving');
+    });
+    setTimeout(() => {
+      renderList(true);
+    }, 220);
+  });
+
+  updateSortFabIcon();
+
+  const titleInput = document.getElementById('sheet-title-input');
+  const fieldVague = document.getElementById('field-vague');
+  const fieldDeep = document.getElementById('field-deep');
+  const fieldNeed = document.getElementById('field-need');
+  const fieldTarget = document.getElementById('field-target');
+  const chainContainer = document.getElementById('chain-container');
+
+  const deepLabel = document.getElementById('deep-label');
+  const deepLabelText = document.getElementById('deep-label-text');
+
+  function applyDeepMode(mode) {
+    if (mode === 'personal') {
+      deepLabelText.textContent = '個人的なスケールにする';
+      fieldDeep.placeholder = '独特なのは？';
+    } else {
+      deepLabelText.textContent = '普遍的なスケールにする';
+      fieldDeep.placeholder = 'みんなに当てはまるのは？';
+    }
+  }
+
+  deepLabel.addEventListener('click', () => {
+    const sheet = getCurrentEditingSheet();
+    if (!sheet) return;
+    sheet.deepMode = (sheet.deepMode === 'universal' || !sheet.deepMode) ? 'personal' : 'universal';
+    applyDeepMode(sheet.deepMode);
+
+    deepLabel.classList.remove('wiggle');
+    void deepLabel.offsetWidth;
+    deepLabel.classList.add('wiggle');
+    setTimeout(() => {
+      deepLabel.classList.remove('wiggle');
+    }, 360);
+  });
+
+  function openEditor(id, draftSheet) {
+    currentId = id;
+    const sheet = draftSheet || sheets.find(s => s.id === id);
+    if (!sheet) return;
+
+    titleInput.value = sheet.title || '';
+    fieldVague.value = sheet.vague || '';
+    fieldDeep.value = sheet.deep || '';
+    fieldNeed.value = sheet.need || '';
+    fieldTarget.value = sheet.target || '';
+    applyDeepMode(sheet.deepMode || null);
+
+    renderChain(sheet.chain || [{ problem: '', flip: '', solve: '' }]);
+
+    completeBtn.textContent = sheet.completed ? '違うかも' : 'できた！';
+    completeBtn.classList.toggle('uncomplete-mode', !!sheet.completed);
+
+    listPage.classList.add('hidden');
+    editorPage.classList.remove('hidden');
+    saveBar.classList.remove('hidden');
+    window.scrollTo(0, 0);
+
+    [titleInput, fieldVague, fieldDeep, fieldNeed, fieldTarget].forEach(autoResize);
+
+    const fadeTargets = editorPage.querySelectorAll(':scope > .title-input-wrap, :scope > .vague-attached-box, :scope > .arrow-down, :scope > .section');
+    fadeTargets.forEach((el, i) => {
+      el.classList.remove('show');
+      el.classList.add('fade-in-item');
+      void el.offsetWidth;
+      el.style.animationDelay = (i * 60) + 'ms';
+      el.classList.add('show');
+    });
+  }
+
+  function showList() {
+    editorPage.classList.add('hidden');
+    saveBar.classList.add('hidden');
+    listPage.classList.remove('hidden');
+    currentId = null;
+    renderList();
+  }
+
+  function renderChain(chain) {
+    chainContainer.innerHTML = '';
+    chain.forEach((stage, idx) => {
+      if (idx > 0) {
+        const connector = document.createElement('div');
+        connector.className = 'stage-connector';
+        connector.textContent = '↓ 本人も気づいていない問題点 ↓';
+        chainContainer.appendChild(connector);
+      }
+
+      const block = document.createElement('div');
+      block.className = 'chain-block' + (idx === 0 ? ' first-block' : '');
+      block.dataset.index = idx;
+
+      const canDelete = chain.length > 1;
+
+      block.innerHTML =
+        (canDelete ? '<button class="chain-delete" data-action="delete-stage" data-idx="' + idx + '">×</button>' : '') +
+        '<div class="chain-row">' +
+          '<div class="chain-cell problem">' +
+            '<textarea class="field stage-problem" data-idx="' + idx + '" placeholder="' + (idx === 0 ? '△△している。' : '問題点') + '">' + escapeHtml(stage.problem || '') + '</textarea>' +
+          '</div>' +
+          '<div class="chain-cell flip">' +
+            '<textarea class="field stage-flip" data-idx="' + idx + '" placeholder="でも本当は△△せずに◯◯したい！">' + escapeHtml(stage.flip || '') + '</textarea>' +
+          '</div>' +
+          '<div class="chain-cell solve">' +
+            '<textarea class="field stage-solve" data-idx="' + idx + '" placeholder="どうやって叶えようか？">' + escapeHtml(stage.solve || '') + '</textarea>' +
+          '</div>' +
+        '</div>';
+      chainContainer.appendChild(block);
+    });
+
+    chainContainer.querySelectorAll('[data-action="delete-stage"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sheet = getCurrentEditingSheet();
+        const idx = parseInt(btn.dataset.idx, 10);
+        sheet.chain.splice(idx, 1);
+        renderChain(sheet.chain);
+      });
+    });
+
+    chainContainer.querySelectorAll('textarea.field').forEach(bindAutoResize);
+  }
+
+  document.getElementById('add-stage-btn').addEventListener('click', () => {
+    const sheet = getCurrentEditingSheet();
+    if (!sheet) return;
+    if (!sheet.chain) sheet.chain = [];
+    sheet.chain.push({ problem: '', flip: '', solve: '' });
+    renderChain(sheet.chain);
+  });
+
+  function collectCurrentSheetData() {
+    const sheet = getCurrentEditingSheet();
+    if (!sheet) return;
+
+    sheet.title = titleInput.value;
+    sheet.vague = fieldVague.value;
+    sheet.deep = fieldDeep.value;
+    sheet.need = fieldNeed.value;
+    sheet.target = fieldTarget.value;
+    sheet.deepMode = sheet.deepMode || null;
+
+    const problems = chainContainer.querySelectorAll('.stage-problem');
+    const flips = chainContainer.querySelectorAll('.stage-flip');
+    const solves = chainContainer.querySelectorAll('.stage-solve');
+
+    const newChain = [];
+    problems.forEach((el, i) => {
+      newChain.push({
+        problem: problems[i].value,
+        flip: flips[i].value,
+        solve: solves[i].value
+      });
+    });
+    sheet.chain = newChain;
+    sheet.updatedAt = Date.now();
+
+    if (isEditingDraft && currentDraftSheet) {
+      sheets.push(currentDraftSheet);
+      isEditingDraft = false;
+      currentDraftSheet = null;
+    }
+  }
+
+  const completeBtn = document.getElementById('save-btn');
+  completeBtn.addEventListener('click', () => {
+    const sheet = getCurrentEditingSheet();
+    if (!sheet) return;
+    sheet.completed = !sheet.completed;
+    collectCurrentSheetData();
+    saveSheets();
+    switchListTab(sheet.completed ? 'complete' : 'incomplete');
+    showList();
+  });
+
+  document.getElementById('discard-btn').addEventListener('click', () => {
+    // 入力内容を保存せず、下書きシートも破棄して一覧に戻る
+    isEditingDraft = false;
+    currentDraftSheet = null;
+    showList();
+  });
+
+  document.getElementById('back-to-list-btn').addEventListener('click', () => {
+    collectCurrentSheetData();
+    saveSheets();
+    showList();
+  });
+
+  [titleInput, fieldVague, fieldDeep, fieldNeed, fieldTarget].forEach(el => {
+    el.addEventListener('input', () => autoResize(el));
+  });
+
+  renderList();
+</script>
+</body>
+</html>
