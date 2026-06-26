@@ -18,10 +18,19 @@
 
   body {
     font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic', sans-serif;
-    background: #0a1228 url('wishbase.jpg') bottom / cover fixed no-repeat;
+    background: #0a1228;
     color: #332f2a;
     min-height: 100vh;
-    padding-bottom: 100px;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url('wishbase.jpg') bottom / cover no-repeat;
+    z-index: 0;
+    pointer-events: none;
   }
 
   #app-header, #list-page, #editor-page, #save-bar {
@@ -34,6 +43,7 @@
     background: #3a3a3a;
     border-bottom: 1px solid #2a2a2a;
     padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top));
     position: sticky;
     top: 0;
     z-index: 50;
@@ -234,23 +244,58 @@
     flex-shrink: 0;
   }
 
-  .star-rating {
+  .rating-block {
+    margin-top: 8px;
     display: flex;
-    gap: 2px;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rating-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .rating-label {
+    font-size: 11px;
+    color: #999;
+    width: 28px;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+  }
+
+  .star-group {
+    display: flex;
+    gap: 1px;
   }
 
   .star-btn {
     background: none;
     border: none;
-    padding: 2px;
+    padding: 1px 2px;
     cursor: pointer;
-    font-size: 19px;
+    font-size: 16px;
     line-height: 1;
     color: #e3d8c8;
+    transition: transform 0.1s;
   }
 
-  .star-btn.filled {
-    color: #e2a83c;
+  .star-btn:active { transform: scale(1.2); }
+
+  .star-btn.filled.green  { color: #3db87c; }
+  .star-btn.filled.red    { color: #e8457a; }
+  .star-btn.filled.blue   { color: #4a90d9; }
+
+  .rating-avg {
+    font-size: 26px;
+    font-weight: 700;
+    color: #c89422;
+    margin-left: 8px;
+    min-width: 52px;
+    text-align: right;
+    letter-spacing: -0.02em;
+    line-height: 1;
   }
 
   .sort-fab {
@@ -276,7 +321,7 @@
     position: fixed;
     left: 16px;
     right: 16px;
-    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
     max-width: 608px;
     margin: 0 auto;
     display: flex;
@@ -581,6 +626,7 @@
     background: #fff;
     border-top: 1px solid #f0e4d4;
     padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
     display: flex;
     gap: 10px;
     z-index: 50;
@@ -718,7 +764,48 @@
   <button id="save-btn">できた！</button>
 </div>
 
-<script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDJt9ygWCuyVK0KPd7TNfHZH4IgwEaLYXY",
+    authDomain: "kimini-negai.firebaseapp.com",
+    databaseURL: "https://kimini-negai-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "kimini-negai",
+    storageBucket: "kimini-negai.firebasestorage.app",
+    messagingSenderId: "429197169839",
+    appId: "1:429197169839:web:8be26430c8eef6c2eeb05a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const sheetsRef = ref(db, 'sheets');
+
+  // Firebaseへの書き込み（グローバルに公開）
+  window._firebaseSave = function(data) {
+    set(sheetsRef, data).catch(e => console.error('Firebase save error:', e));
+  };
+
+  // Firebase初期化完了フラグ
+  window._firebaseReady = false;
+
+  // Firebaseからリアルタイム受信
+  onValue(sheetsRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data && Array.isArray(data)) {
+      // マイグレーション
+      data.forEach(s => {
+        if (!s.ratings) s.ratings = { ninzu: 0, hindo: 0, senzai: 0 };
+      });
+      // localStorageも更新
+      localStorage.setItem('wagamama-needs-sheets', JSON.stringify(data));
+      // アプリ側のsheetsを更新して再描画
+      if (window._onFirebaseData) window._onFirebaseData(data);
+    }
+    window._firebaseReady = true;
+  });
+</script>
   const STORAGE_KEY = 'wagamama-needs-sheets';
 
   function autoResize(el) {
@@ -732,12 +819,16 @@
   }
 
   let sheets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  sheets.forEach(s => {
+    if (!s.ratings) s.ratings = { ninzu: 0, hindo: 0, senzai: 0 };
+  });
   let currentId = null;
   let currentDraftSheet = null; // 保存前の新規シート（まだsheets配列に入っていない）
   let isEditingDraft = false;
 
   function saveSheets() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sheets));
+    if (window._firebaseSave) window._firebaseSave(sheets);
   }
 
   function getCurrentEditingSheet() {
@@ -761,7 +852,7 @@
       chain: [
         { problem: '', flip: '', solve: '' }
       ],
-      rating: 0,
+      ratings: { ninzu: 0, hindo: 0, senzai: 0 },
       completed: false,
       updatedAt: Date.now()
     };
@@ -780,56 +871,105 @@
   const listTabs = document.getElementById('list-tabs');
   const swipeContainer = document.getElementById('swipe-container');
 
+  function calcAvg(ratings) {
+    const r = ratings || { ninzu: 0, hindo: 0, senzai: 0 };
+    const vals = [r.ninzu, r.hindo, r.senzai];
+    const filled = vals.filter(v => v > 0);
+    if (filled.length === 0) return 0;
+    const sum = vals.reduce((a, b) => a + b, 0);
+    return Math.round((sum / 3) * 10) / 10;
+  }
+
+  function makeStarGroupHtml(axis, color, value) {
+    let html = '<div class="star-group" data-axis="' + axis + '">';
+    for (let i = 1; i <= 5; i++) {
+      const filled = i <= value;
+      html += '<button class="star-btn' + (filled ? ' filled ' + color : '') + '" data-axis="' + axis + '" data-star="' + i + '">★</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
   function createSheetCard(sheet, staggered, sheetIdx) {
+    if (!sheet.ratings) sheet.ratings = { ninzu: 0, hindo: 0, senzai: 0 };
+
     const card = document.createElement('div');
     card.className = 'sheet-card';
-    if (staggered) {
-      card.style.animationDelay = (sheetIdx * 55) + 'ms';
-    }
+    if (staggered) card.style.animationDelay = (sheetIdx * 55) + 'ms';
+
     const titleText = sheet.title.trim() || 'なまえなし';
     const isPlaceholder = !sheet.title.trim();
     const date = new Date(sheet.updatedAt);
     const dateStr = (date.getMonth()+1) + '/' + date.getDate() + ' ' + String(date.getHours()).padStart(2,'0') + ':' + String(date.getMinutes()).padStart(2,'0');
-    const rating = sheet.rating || 0;
 
-    let starsHtml = '<div class="star-rating">';
-    for (let i = 1; i <= 5; i++) {
-      starsHtml += '<button class="star-btn ' + (i <= rating ? 'filled' : '') + '" data-star="' + i + '">' + (i <= rating ? '★' : '☆') + '</button>';
-    }
-    starsHtml += '</div>';
+    const avg = calcAvg(sheet.ratings);
+    const avgText = avg > 0 ? avg.toFixed(1) : '';
+
+    const ratingBlockHtml =
+      '<div class="rating-block">' +
+        '<div class="rating-row">' +
+          '<div class="rating-label">人数</div>' +
+          makeStarGroupHtml('ninzu', 'green', sheet.ratings.ninzu) +
+        '</div>' +
+        '<div class="rating-row">' +
+          '<div class="rating-label">頻度</div>' +
+          makeStarGroupHtml('hindo', 'red', sheet.ratings.hindo) +
+        '</div>' +
+        '<div class="rating-row">' +
+          '<div class="rating-label">潜在</div>' +
+          makeStarGroupHtml('senzai', 'blue', sheet.ratings.senzai) +
+        '</div>' +
+      '</div>';
 
     card.innerHTML =
       '<div class="sheet-card-main">' +
         '<div class="sheet-card-title ' + (isPlaceholder ? 'placeholder' : '') + '">' + escapeHtml(titleText) + '</div>' +
-        '<div class="sheet-card-meta-row">' +
-          starsHtml +
-          '<div class="sheet-card-sub">' + dateStr + '</div>' +
+        '<div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:6px;">' +
+          ratingBlockHtml +
+          '<div>' +
+            (avgText ? '<div class="rating-avg">' + avgText + '</div>' : '') +
+            '<div class="sheet-card-sub" style="margin-top:4px;">' + dateStr + '</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<button class="sheet-delete-btn" data-action="delete-sheet" data-id="' + sheet.id + '">×</button>';
 
     card.querySelector('.sheet-card-main').addEventListener('click', (e) => {
-      if (e.target.closest('.star-rating')) return;
+      if (e.target.closest('.rating-block')) return;
       isEditingDraft = false;
       currentDraftSheet = null;
       openEditor(sheet.id);
     });
 
-    const starRatingEl = card.querySelector('.star-rating');
-    starRatingEl.querySelectorAll('.star-btn').forEach(starBtn => {
+    card.querySelectorAll('.star-btn').forEach(starBtn => {
       starBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        const axis = starBtn.dataset.axis;
         const clickedValue = parseInt(starBtn.dataset.star, 10);
-        sheet.rating = (sheet.rating === clickedValue) ? 0 : clickedValue;
+        sheet.ratings[axis] = (sheet.ratings[axis] === clickedValue) ? 0 : clickedValue;
         saveSheets();
 
-        const newRating = sheet.rating || 0;
-        starRatingEl.querySelectorAll('.star-btn').forEach((b, i) => {
-          const starValue = i + 1;
-          const isFilled = starValue <= newRating;
-          b.classList.toggle('filled', isFilled);
-          b.textContent = isFilled ? '★' : '☆';
+        const group = card.querySelector('.star-group[data-axis="' + axis + '"]');
+        const colorClass = axis === 'ninzu' ? 'green' : axis === 'hindo' ? 'red' : 'blue';
+        group.querySelectorAll('.star-btn').forEach((b, i) => {
+          const isFilled = (i + 1) <= sheet.ratings[axis];
+          b.className = 'star-btn' + (isFilled ? ' filled ' + colorClass : '');
         });
+
+        const newAvg = calcAvg(sheet.ratings);
+        const avgEl = card.querySelector('.rating-avg');
+        if (newAvg > 0) {
+          if (avgEl) {
+            avgEl.textContent = newAvg.toFixed(1);
+          } else {
+            const avgDiv = document.createElement('div');
+            avgDiv.className = 'rating-avg';
+            avgDiv.textContent = newAvg.toFixed(1);
+            card.querySelector('.sheet-card-sub').parentNode.insertBefore(avgDiv, card.querySelector('.sheet-card-sub'));
+          }
+        } else if (avgEl) {
+          avgEl.textContent = '';
+        }
       });
     });
 
@@ -860,8 +1000,8 @@
   function sortSheets(list) {
     return [...list].sort((a, b) => {
       if (currentSort === 'favorite') {
-        const ratingDiff = (b.rating || 0) - (a.rating || 0);
-        if (ratingDiff !== 0) return ratingDiff;
+        const avgDiff = calcAvg(b.ratings) - calcAvg(a.ratings);
+        if (avgDiff !== 0) return avgDiff;
         return b.updatedAt - a.updatedAt;
       }
       return b.updatedAt - a.updatedAt;
@@ -1170,6 +1310,15 @@
   [titleInput, fieldVague, fieldDeep, fieldNeed, fieldTarget].forEach(el => {
     el.addEventListener('input', () => autoResize(el));
   });
+
+  // Firebaseからデータが届いた時にアプリを更新
+  window._onFirebaseData = function(data) {
+    // 編集中でなければ自動更新
+    if (!currentId) {
+      sheets = data;
+      renderList();
+    }
+  };
 
   renderList();
 </script>
